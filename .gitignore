@@ -1,0 +1,9 @@
+# Secrets — niemals committen!
+.env
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+*.swp

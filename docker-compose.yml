@@ -1,0 +1,284 @@
+volumes:
+  nextcloud:
+  db:
+  esdata:
+  turn-certs:
+  roundcube-db:
+  paperless-data:
+  paperless-media:
+  paperless-export:
+  paperless-db:
+  paperless-redis:
+  epost-state:
+
+networks:
+  internal:
+    driver: bridge
+
+services:
+
+  # ── Nextcloud Cron ──────────────────────────────────────────────────────────
+  cron:
+    image: nextcloud
+    volumes:
+      - nextcloud:/var/www/html
+    entrypoint: /cron.sh
+    depends_on:
+      - app
+    networks:
+      - internal
+    restart: "no"
+
+  # ── Roundcube DB ────────────────────────────────────────────────────────────
+  roundcube-db:
+    image: mariadb:10.6
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=${ROUNDCUBE_MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=roundcube
+      - MYSQL_USER=roundcube
+      - MYSQL_PASSWORD=${ROUNDCUBE_MYSQL_PASSWORD}
+    volumes:
+      - roundcube-db:/var/lib/mysql
+    networks:
+      - internal
+
+  # ── Roundcube ───────────────────────────────────────────────────────────────
+  roundcube:
+    image: roundcube/roundcubemail:latest
+    restart: always
+    ports:
+      - "2022:80"
+    depends_on:
+      - roundcube-db
+    environment:
+      - ROUNDCUBEMAIL_DB_TYPE=mysql
+      - ROUNDCUBEMAIL_DB_HOST=roundcube-db
+      - ROUNDCUBEMAIL_DB_NAME=roundcube
+      - ROUNDCUBEMAIL_DB_USER=roundcube
+      - ROUNDCUBEMAIL_DB_PASSWORD=${ROUNDCUBE_MYSQL_PASSWORD}
+      - ROUNDCUBEMAIL_DEFAULT_HOST=ssl://${MAIL_HOST}
+      - ROUNDCUBEMAIL_DEFAULT_PORT=993
+      - ROUNDCUBEMAIL_SMTP_SERVER=tls://${MAIL_HOST}
+      - ROUNDCUBEMAIL_SMTP_PORT=587
+    networks:
+      - internal
+
+  # ── Nextcloud DB ────────────────────────────────────────────────────────────
+  db:
+    image: mariadb:10.6
+    restart: always
+    command: --transaction-isolation=READ-COMMITTED --log-bin=binlog --binlog-format=ROW
+    volumes:
+      - db:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${NEXTCLOUD_MYSQL_ROOT_PASSWORD}
+      - MYSQL_PASSWORD=${NEXTCLOUD_MYSQL_PASSWORD}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+    networks:
+      - internal
+
+  # ── Nextcloud App ───────────────────────────────────────────────────────────
+  app:
+    image: nextcloud
+    restart: always
+    ports:
+      - 2020:80
+    links:
+      - db
+    networks:
+      - internal
+    volumes:
+      - nextcloud:/var/www/html
+    depends_on:
+      - db
+      - elasticsearch
+    environment:
+      - MYSQL_PASSWORD=${NEXTCLOUD_MYSQL_PASSWORD}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_HOST=db
+      - NEXTCLOUD_TRUSTED_DOMAINS=${NEXTCLOUD_TRUSTED_DOMAINS}
+
+  # ── Elasticsearch ───────────────────────────────────────────────────────────
+  elasticsearch:
+    image: elasticsearch:8.6.1
+    container_name: nextcloud-elasticsearch
+    restart: always
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    networks:
+      - internal
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+
+  # ── Nextcloud AppAPI DSP ────────────────────────────────────────────────────
+  dsp:
+    image: ghcr.io/nextcloud/nextcloud-appapi-dsp:v1.5.3
+    container_name: nextcloud-dsp
+    restart: always
+    environment:
+      - NC_URL=http://app
+      - NC_HAPROXY_PASSWORD=${DSP_HAPROXY_PASSWORD}
+      - BIND_ADDRESS=0.0.0.0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - internal
+
+  # ── OnlyOffice ──────────────────────────────────────────────────────────────
+  onlyoffice:
+    image: onlyoffice/documentserver:latest
+    container_name: onlyoffice
+    restart: always
+    ports:
+      - 2021:80
+    environment:
+      - JWT_ENABLED=true
+      - JWT_SECRET=${ONLYOFFICE_JWT_SECRET}
+    networks:
+      - internal
+    expose:
+      - "80"
+
+  # ── Coturn TURN-Server ──────────────────────────────────────────────────────
+  turn:
+    image: instrumentisto/coturn
+    container_name: coturn
+    restart: always
+    ports:
+      - "3478:3478"
+      - "3478:3478/udp"
+      - "5349:5349"
+      - "5349:5349/udp"
+    volumes:
+      - turn-certs:/etc/letsencrypt:ro
+    command:
+      - -n
+      - --lt-cred-mech
+      - --fingerprint
+      - --no-multicast-peers
+      - --no-cli
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SECRET}
+      - --cert=/etc/letsencrypt/live/${TURN_DOMAIN}/fullchain.pem
+      - --pkey=/etc/letsencrypt/live/${TURN_DOMAIN}/privkey.pem
+      - --realm=${BASE_DOMAIN}
+      - --listening-ip=0.0.0.0
+      - --external-ip=${SERVER_PUBLIC_IP}
+
+  # ── Certbot ─────────────────────────────────────────────────────────────────
+  certbot:
+    image: certbot/certbot
+    container_name: certbot-turn
+    ports:
+      - "81:80"
+    volumes:
+      - turn-certs:/etc/letsencrypt
+    command: >
+      certonly --standalone
+               --preferred-challenges http
+               --agree-tos
+               -m ${CERTBOT_EMAIL}
+               -d ${TURN_DOMAIN}
+               --non-interactive
+
+  # ── Paperless Redis ─────────────────────────────────────────────────────────
+  paperless-redis:
+    image: redis:7
+    container_name: paperless-redis
+    restart: always
+    volumes:
+      - paperless-redis:/data
+    networks:
+      - internal
+
+  # ── Paperless DB ────────────────────────────────────────────────────────────
+  paperless-db:
+    image: postgres:15
+    container_name: paperless-db
+    restart: always
+    environment:
+      - POSTGRES_DB=paperless
+      - POSTGRES_USER=paperless
+      - POSTGRES_PASSWORD=${PAPERLESS_DB_PASSWORD}
+    volumes:
+      - paperless-db:/var/lib/postgresql/data
+    networks:
+      - internal
+
+  # ── Gotenberg ───────────────────────────────────────────────────────────────
+  gotenberg:
+    image: gotenberg/gotenberg:7
+    container_name: paperless-gotenberg
+    restart: always
+    command:
+      - "gotenberg"
+      - "--chromium-disable-javascript=true"
+      - "--chromium-allow-list=file:///tmp/.*"
+    networks:
+      - internal
+
+  # ── Tika ────────────────────────────────────────────────────────────────────
+  tika:
+    image: apache/tika:latest
+    container_name: paperless-tika
+    restart: always
+    networks:
+      - internal
+
+  # ── Paperless-ngx ───────────────────────────────────────────────────────────
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    container_name: paperless-ngx
+    restart: always
+    ports:
+      - "2023:8000"
+    depends_on:
+      - paperless-db
+      - paperless-redis
+      - gotenberg
+      - tika
+    networks:
+      - internal
+    volumes:
+      - paperless-data:/usr/src/paperless/data
+      - paperless-media:/usr/src/paperless/media
+      - paperless-export:/usr/src/paperless/export
+      - /opt/paperless/consume:/usr/src/paperless/consume   # Bind-Mount für Fetcher
+    environment:
+      - PAPERLESS_REDIS=redis://paperless-redis:6379
+      - PAPERLESS_DBHOST=paperless-db
+      - PAPERLESS_DBNAME=paperless
+      - PAPERLESS_DBUSER=paperless
+      - PAPERLESS_DBPASS=${PAPERLESS_DB_PASSWORD}
+      - PAPERLESS_TIKA_ENABLED=1
+      - PAPERLESS_TIKA_ENDPOINT=http://tika:9998
+      - PAPERLESS_TIKA_GOTENBERG_ENDPOINT=http://gotenberg:3000
+      - PAPERLESS_URL=${PAPERLESS_URL}
+      - PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET_KEY}
+      - PAPERLESS_TIME_ZONE=Europe/Zurich
+      - PAPERLESS_OCR_LANGUAGE=deu+eng
+      - PAPERLESS_ADMIN_USER=${PAPERLESS_ADMIN_USER}
+      - PAPERLESS_ADMIN_PASSWORD=${PAPERLESS_ADMIN_PASSWORD}
+
+  # ── E-Post Fetcher ──────────────────────────────────────────────────────────
+  epost-fetcher:
+    image: ghcr.io/paperless-epost-by-klara/epost-fetcher:latest
+    container_name: epost-fetcher
+    restart: always
+    volumes:
+      - /opt/paperless/consume:/consume
+      - epost-state:/data
+    environment:
+      - CONSUME_DIR=/consume
+      - FETCH_INTERVAL=${EPOST_FETCH_INTERVAL}
+      - DELETE_AFTER=${EPOST_DELETE_AFTER}
+      - EPOST_ACCOUNTS=${EPOST_ACCOUNTS}
+    networks:
+      - internal
