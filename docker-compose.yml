@@ -269,7 +269,7 @@ services:
 
   # ── E-Post Fetcher ──────────────────────────────────────────────────────────
   epost-fetcher:
-    image: ghcr.io/paperless-epost-by-klara/epost-fetcher:latest
+    image: ghcr.io/itsieber/paperless-epost-by-klara:latest
     container_name: epost-fetcher
     restart: always
     volumes:

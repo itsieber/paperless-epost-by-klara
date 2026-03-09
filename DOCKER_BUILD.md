@@ -15,7 +15,7 @@ Der Build wird automatisch ausgelöst:
 
 Das fertige Image wird hier publiziert:
 ```
-ghcr.io/paperless-epost-by-klara/epost-fetcher:latest
+ghcr.io/itsieber/paperless-epost-by-klara:latest
 ```
 
 Weitere verfügbare Tags:
@@ -36,7 +36,7 @@ Dann in der `docker-compose.yml` temporär anpassen:
 ```yaml
 epost-fetcher:
   image: epost-fetcher:dev
-  # statt ghcr.io/paperless-epost-by-klara/epost-fetcher:latest
+  # statt ghcr.io/itsieber/paperless-epost-by-klara:latest
 ```
 
 Oder lokal bauen mittels:
@@ -50,7 +50,7 @@ epost-fetcher:
 Falls das Image noch nicht verfügbar ist oder aktualisiert werden soll:
 
 ```bash
-docker pull ghcr.io/paperless-epost-by-klara/epost-fetcher:latest
+docker pull ghcr.io/itsieber/paperless-epost-by-klara:latest
 ```
 
 ## Berechtigungen

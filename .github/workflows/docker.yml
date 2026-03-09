@@ -10,7 +10,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: paperless-epost-by-klara/epost-fetcher
+  IMAGE_NAME: itsieber/paperless-epost-by-klara
 
 jobs:
   build-and-push:

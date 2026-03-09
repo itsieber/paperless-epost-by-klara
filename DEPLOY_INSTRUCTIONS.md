@@ -45,7 +45,7 @@ Dies startet ebenfalls die Action und erstellt zusätzliche Image-Tags (v1, v1.0
 Nach erfolgreichem Build kannst du das Image mit folgendem Befehl pullen:
 
 ```bash
-docker pull ghcr.io/paperless-epost-by-klara/epost-fetcher:latest
+docker pull ghcr.io/itsieber/paperless-epost-by-klara:latest
 ```
 
 ## Falls die Action fehlschlägt
