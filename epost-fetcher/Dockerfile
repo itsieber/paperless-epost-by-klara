@@ -9,8 +9,8 @@ RUN groupadd -g 1000 paperless && \
     useradd -r -u 1000 -g paperless paperless
 
 COPY fetcher.py .
+COPY entrypoint.sh /entrypoint.sh
 
-# Use paperless user
-USER paperless
+RUN chmod +x /entrypoint.sh
 
-CMD ["python", "-u", "fetcher.py"]
+ENTRYPOINT ["/entrypoint.sh"]
