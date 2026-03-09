@@ -4,6 +4,13 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir requests
 
+# Create paperless user with same UID as Paperless container
+RUN groupadd -g 1000 paperless && \
+    useradd -r -u 1000 -g paperless paperless
+
 COPY fetcher.py .
+
+# Use paperless user
+USER paperless
 
 CMD ["python", "-u", "fetcher.py"]
