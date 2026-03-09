@@ -1,3 +1,5 @@
+Produktionsreifer Docker Compose Stack für eine vollständige Self-Hosted-Infrastruktur auf Basis von Nextcloud. Beinhaltet Dokumentenbearbeitung mit OnlyOffice, Webmail via Roundcube, Echtzeit-Kommunikation mit Coturn TURN-Server sowie Paperless-ngx als digitales Dokumentenarchiv. Ein integrierter E-Post Fetcher holt automatisch Briefe von mehreren E-Post Accounts ab und übergibt sie direkt an Paperless-ngx zur OCR-Verarbeitung und Archivierung.
+
 # Nextcloud Stack
 
 Vollständiger Docker-Stack mit:
