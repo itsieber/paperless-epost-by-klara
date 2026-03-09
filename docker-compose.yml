@@ -269,7 +269,10 @@ services:
 
   # ── E-Post Fetcher ──────────────────────────────────────────────────────────
   epost-fetcher:
-    image: ghcr.io/itsieber/paperless-epost-by-klara:latest
+    # Für den ersten Start: lokaler Build
+    # Nach erfolgreichem GitHub Action Build: ghcr.io/itsieber/paperless-epost-by-klara:latest
+    build: ./epost-fetcher
+    # image: ghcr.io/itsieber/paperless-epost-by-klara:latest
     container_name: epost-fetcher
     restart: always
     volumes:
