@@ -10,6 +10,7 @@ volumes:
   paperless-db:
   paperless-redis:
   epost-state:
+  paperless-consume:
 
 networks:
   internal:
@@ -250,7 +251,7 @@ services:
       - paperless-data:/usr/src/paperless/data
       - paperless-media:/usr/src/paperless/media
       - paperless-export:/usr/src/paperless/export
-      - /opt/paperless/consume:/usr/src/paperless/consume   # Bind-Mount für Fetcher
+      - paperless-consume:/usr/src/paperless/consume   # Docker Volume für Fetcher
     environment:
       - PAPERLESS_REDIS=redis://paperless-redis:6379
       - PAPERLESS_DBHOST=paperless-db
@@ -276,7 +277,7 @@ services:
     container_name: epost-fetcher
     restart: always
     volumes:
-      - /opt/paperless/consume:/consume
+      - paperless-consume:/consume
       - epost-state:/data
     environment:
       - CONSUME_DIR=/consume
