@@ -416,6 +416,13 @@ class PrivateEPostClient:
         resp.raise_for_status()
         return resp.content
 
+    def get_letter_details(self, letter_id: str):
+        """
+        Für Private-Kontos gibt es keine separate Detail-API.
+        Gibt None zurück – fetcher.py fällt dann auf das Basis-Letter-Dict zurück.
+        """
+        return None
+
     def delete_letter(self, letter_id: str):
         """Nicht unterstützt für Private-Kontos – wird still ignoriert."""
         logger.debug(
