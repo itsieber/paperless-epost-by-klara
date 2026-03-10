@@ -4,8 +4,12 @@ E-Post → Paperless-ngx Fetcher
 Holt PDFs von mehreren E-Post Accounts und legt sie in account-spezifische
 Consume-Unterordner, damit Paperless sie getrennt verarbeitet.
 
+Unterstützte Account-Typen:
+- business: Klara API-Key (EPOST_ACCOUNTS key + type=business)
+- private:  Klara Web-Login (KLARA_USERNAME, KLARA_PASSWORD, KLARA_COMPANY + type=private)
+
 Erweiterte Features:
-- Paging für große Letter-Listen
+- Paging für große Letter-Listen (business)
 - Alle Subfolders (INBOX_FOLDER, ARCHIVE_FOLDER, etc.)
 - Tags und Metadaten als Sidecar-JSON
 """
@@ -26,6 +30,8 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S"
 )
 log = logging.getLogger("epost-fetcher")
+
+VERSION = "2.0.0"  # business + private Klara-Kontos
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
 EPOST_API_BASE  = "https://api.epost.ch/epost/v2"
@@ -310,6 +316,7 @@ def main():
         log.error("Keine Accounts konfiguriert. Setze EPOST_ACCOUNTS.")
         raise SystemExit(1)
 
+    log.info(f"E-Post Fetcher Version {VERSION}")
     log.info(f"Starte E-Post Fetcher mit {len(accounts)} Account(s)")
     log.info(f"Intervall: {FETCH_INTERVAL}s")
     log.info(f"Folders: {', '.join(LETTER_FOLDERS)}")
@@ -320,17 +327,53 @@ def main():
         imported = load_state()
 
         for account in accounts:
-            api_key = account.get("key", "").strip()
-            name    = account.get("name", "unbekannt").strip()
-
-            if not api_key:
-                log.warning(f"Account '{name}' hat keinen API-Key, überspringe.")
-                continue
+            name         = account.get("name", "unbekannt").strip()
+            account_type = account.get("type", "business").strip().lower()
 
             consume_dir = Path(CONSUME_DIR) / name
             consume_dir.mkdir(parents=True, exist_ok=True)
 
-            client = EPostClient(api_key=api_key, account_name=name)
+            if account_type == "private":
+                # ── Privates Klara-Konto (Web-Login) ──────────────────────────
+                username     = account.get("KLARA_USERNAME", "").strip()
+                password     = account.get("KLARA_PASSWORD", "").strip()
+                company_name = account.get("KLARA_COMPANY", "").strip()
+
+                if not username or not password:
+                    log.warning(
+                        f"Account '{name}' (private) hat kein KLARA_USERNAME / "
+                        f"KLARA_PASSWORD, überspringe."
+                    )
+                    continue
+
+                try:
+                    from klara_private import PrivateEPostClient
+                except ImportError as e:
+                    log.error(
+                        f"klara_private.py nicht gefunden – Private-Kontos "
+                        f"können nicht genutzt werden: {e}"
+                    )
+                    continue
+
+                client = PrivateEPostClient(
+                    username=username,
+                    password=password,
+                    company_name=company_name,
+                    account_name=name,
+                )
+                log.info(f"[{name}] Privates Konto (Klara Web-Login)")
+
+            else:
+                # ── Geschäftliches Klara-Konto (API-Key) ──────────────────────
+                api_key = account.get("key", "").strip()
+
+                if not api_key:
+                    log.warning(f"Account '{name}' (business) hat keinen API-Key, überspringe.")
+                    continue
+
+                client = EPostClient(api_key=api_key, account_name=name)
+                log.info(f"[{name}] Geschäftliches Konto (API-Key)")
+
             fetch_account(client, consume_dir, imported)
 
         save_state(imported)
